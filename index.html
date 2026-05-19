@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Peloton Death Spiral Simulator — UNC Kenan-Flagler</title>
+<style>
+  :root {
+    --carolina-blue: #4B9CD3;
+    --carolina-blue-light: #7BAFD4;
+    --navy: #13294B;
+    --navy-dark: #0a1730;
+    --white: #FFFFFF;
+    --gray-bg: #F4F6F9;
+    --danger: #E03C31;
+    --success: #2E8540;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%);
+    min-height: 100vh;
+    padding: 24px;
+    color: var(--navy);
+  }
+
+  .widget {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: var(--white);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+
+  .header {
+    background: linear-gradient(90deg, var(--navy) 0%, var(--carolina-blue) 100%);
+    color: var(--white);
+    padding: 22px 28px;
+  }
+
+  .header h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  .header p {
+    margin: 6px 0 0 0;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+
+  .header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 0;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel-left {
+    padding: 24px 28px;
+    background: var(--gray-bg);
+    border-right: 1px solid #e0e6ed;
+  }
+
+  .panel-right {
+    padding: 24px 28px;
+    background: var(--white);
+  }
+
+  h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--navy);
+    margin: 0 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--carolina-blue);
+  }
+
+  .control {
+    margin-bottom: 18px;
+  }
+
+  .control-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .control-label .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .control-label .value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--carolina-blue);
+    background: var(--white);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--carolina-blue);
+    min-width: 60px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--carolina-blue), var(--carolina-blue-light));
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--navy);
+    cursor: pointer;
+    border: 2px solid var(--white);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--navy);
+    cursor: pointer;
+    border: 2px solid var(--white);
+  }
+
+  .help {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  .verdict {
+    padding: 16px 18px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 15px;
+  }
+
+  .verdict.safe {
+    background: #e6f4ea;
+    color: var(--success);
+    border: 2px solid var(--success);
+  }
+
+  .verdict.warning {
+    background: #fff8e1;
+    color: #b45309;
+    border: 2px solid #f59e0b;
+  }
+
+  .verdict.danger {
+    background: #fde7e6;
+    color: var(--danger);
+    border: 2px solid var(--danger);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(224,60,49,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(224,60,49,0); }
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .metric {
+    background: var(--gray-bg);
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid var(--carolina-blue);
+  }
+
+  .metric .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #6b7280;
+    letter-spacing: 0.5px;
+  }
+
+  .metric .num {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-top: 2px;
+  }
+
+  .chart-wrap {
+    background: var(--gray-bg);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  canvas {
+    width: 100%;
+    height: 260px;
+    display: block;
+  }
+
+  .footnote {
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.5;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 12px;
+    margin-top: 8px;
+  }
+
+  .reset-btn {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+    transition: background 0.2s;
+  }
+
+  .reset-btn:hover { background: var(--carolina-blue); }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    margin-top: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="widget">
+    <div class="header">
+      <h1>Peloton Death Spiral Simulator <span class="badge">UNC Kenan-Flagler</span></h1>
+      <p>Stress-test the connected fitness subscription model. Anchored to Peloton FY2025 10-K data (subscribers ≈ 2.80M, sub ARPU ≈ $50/mo, 73% contribution margin).</p>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT PANEL: INPUTS -->
+      <div class="panel-left">
+        <h2>Assumptions</h2>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Starting Subscribers</span>
+            <span class="value" id="subsVal">2,800,000</span>
+          </div>
+          <input type="range" id="subs" min="500000" max="4000000" step="50000" value="2800000">
+          <div class="help">Peloton FY25 ending Paid Connected Fitness Subs: 2.80M</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Monthly Churn Rate</span>
+            <span class="value" id="churnVal">1.6%</span>
+          </div>
+          <input type="range" id="churn" min="0.5" max="6.0" step="0.1" value="1.6">
+          <div class="help">FY25 avg net monthly churn = 1.6% (per 10-K)</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Monthly New Subs (Gross Adds)</span>
+            <span class="value" id="addsVal">38,000</span>
+          </div>
+          <input type="range" id="adds" min="0" max="120000" step="1000" value="38000">
+          <div class="help">Implied gross adds to roughly hold steady at 1.6% churn</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Avg Monthly Subscription Revenue / Sub</span>
+            <span class="value" id="arpuVal">$50</span>
+          </div>
+          <input type="range" id="arpu" min="20" max="80" step="1" value="50">
+          <div class="help">FY25 sub revenue $1.67B / ~2.8M subs / 12mo ≈ $50</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Variable Cost per Sub / Month</span>
+            <span class="value" id="vcVal">$13.50</span>
+          </div>
+          <input type="range" id="vc" min="2" max="40" step="0.5" value="13.5">
+          <div class="help">Music royalties, streaming, payment processing (~27% of ARPU)</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Annual Fixed Costs</span>
+            <span class="value" id="fcVal">$1.15B</span>
+          </div>
+          <input type="range" id="fc" min="200" max="2500" step="25" value="1150">
+          <div class="help">S&amp;M + G&amp;A + R&amp;D (FY25 ≈ $1.15B after restructuring)</div>
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <span class="name">Customer Acquisition Cost (CAC)</span>
+            <span class="value" id="cacVal">$300</span>
+          </div>
+          <input type="range" id="cac" min="50" max="1500" step="25" value="300">
+          <div class="help">Marketing spend per gross new subscriber</div>
+        </div>
+
+        <button class="reset-btn" id="resetBtn">Reset to Peloton FY25 Baseline</button>
+      </div>
+
+      <!-- RIGHT PANEL: OUTPUTS -->
+      <div class="panel-right">
+        <h2>5-Year Projection</h2>
+
+        <div class="verdict" id="verdict">Calculating…</div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="label">Subs in 5 Years</div>
+            <div class="num" id="endSubs">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Sub Change</div>
+            <div class="num" id="subChange">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Year-5 Op Profit</div>
+            <div class="num" id="endProfit">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">LTV / CAC</div>
+            <div class="num" id="ltvCac">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Breakeven Subs</div>
+            <div class="num" id="breakeven">—</div>
+          </div>
+          <div class="metric">
+            <div class="label">Contribution Margin</div>
+            <div class="num" id="contribMargin">—</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="chart"></canvas>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot" style="background: #4B9CD3"></span>Subscribers (M)</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #13294B"></span>Annual Op Profit ($M)</div>
+            <div class="legend-item"><span class="legend-dot" style="background: #E03C31"></span>Breakeven</div>
+          </div>
+        </div>
+
+        <div class="footnote">
+          <strong>Death spiral logic:</strong> Triggered when projected subscribers fall &gt;30% over 5 years OR annual operating profit drops below –50% of fixed costs. Model assumes constant churn/adds; in reality, distress often accelerates both. Data sourced from Peloton FY2025 10-K and Q4 FY25 shareholder letter.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  const inputs = {
+    subs: $('subs'),
+    churn: $('churn'),
+    adds: $('adds'),
+    arpu: $('arpu'),
+    vc: $('vc'),
+    fc: $('fc'),
+    cac: $('cac')
+  };
+
+  const defaults = {
+    subs: 2800000, churn: 1.6, adds: 38000,
+    arpu: 50, vc: 13.5, fc: 1150, cac: 300
+  };
+
+  const fmtNum = n => n.toLocaleString('en-US', {maximumFractionDigits: 0});
+  const fmtMoney = n => {
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    if (abs >= 1e9) return sign + '$' + (abs/1e9).toFixed(2) + 'B';
+    if (abs >= 1e6) return sign + '$' + (abs/1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return sign + '$' + (abs/1e3).toFixed(0) + 'K';
+    return sign + '$' + abs.toFixed(0);
+  };
+  const fmtPct = n => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+
+  function simulate() {
+    const startSubs = +inputs.subs.value;
+    const churn = +inputs.churn.value / 100;
+    const adds = +inputs.adds.value;
+    const arpu = +inputs.arpu.value;
+    const vc = +inputs.vc.value;
+    const fcAnnual = +inputs.fc.value * 1e6;
+    const cac = +inputs.cac.value;
+
+    const months = 60;
+    const subsSeries = [startSubs];
+    const profitSeries = [];
+
+    let subs = startSubs;
+    for (let m = 1; m <= months; m++) {
+      subs = subs * (1 - churn) + adds;
+      subsSeries.push(subs);
+    }
+
+    // Annual profit per year
+    for (let y = 0; y < 5; y++) {
+      let yearSubMonths = 0;
+      for (let m = y*12; m < (y+1)*12; m++) {
+        yearSubMonths += subsSeries[m+1];
+      }
+      const annualSubRev = yearSubMonths * arpu;
+      const annualVar = yearSubMonths * vc;
+      const annualCAC = adds * 12 * cac;
+      const profit = annualSubRev - annualVar - fcAnnual - annualCAC;
+      profitSeries.push(profit);
+    }
+
+    return { subsSeries, profitSeries, startSubs, churn, adds, arpu, vc, fcAnnual, cac };
+  }
+
+  function update() {
+    const r = simulate();
+    const endSubs = r.subsSeries[60];
+    const subChangePct = ((endSubs - r.startSubs) / r.startSubs) * 100;
+    const endProfit = r.profitSeries[4];
+
+    // LTV / CAC
+    const contributionPerSub = r.arpu - r.vc;
+    const ltv = r.churn > 0 ? contributionPerSub / r.churn : contributionPerSub * 100;
+    const ltvCac = r.cac > 0 ? ltv / r.cac : 0;
+
+    // Breakeven subs (covers fixed costs from contribution only, ignoring CAC)
+    const annualContribPerSub = contributionPerSub * 12;
+    const breakeven = annualContribPerSub > 0 ? r.fcAnnual / annualContribPerSub : Infinity;
+
+    const contribMarginPct = r.arpu > 0 ? (contributionPerSub / r.arpu) * 100 : 0;
+
+    // Verdict
+    const verdictEl = $('verdict');
+    let verdictText, verdictClass;
+    if (subChangePct < -30 || endProfit < -0.5 * r.fcAnnual) {
+      verdictText = '🔻 DEATH SPIRAL — Model is collapsing. Subscriber base or unit economics cannot sustain fixed costs.';
+      verdictClass = 'danger';
+    } else if (subChangePct < -10 || endProfit < 0 || ltvCac < 3) {
+      verdictText = '⚠️ AT RISK — Trajectory is weak. Margin compression or sub erosion threatens long-term viability.';
+      verdictClass = 'warning';
+    } else {
+      verdictText = '✅ SUSTAINABLE — Subscription economics holding. Model is generating profit and stable subs.';
+      verdictClass = 'safe';
+    }
+    verdictEl.textContent = verdictText;
+    verdictEl.className = 'verdict ' + verdictClass;
+
+    // Metrics
+    $('endSubs').textContent = fmtNum(endSubs);
+    $('subChange').textContent = fmtPct(subChangePct);
+    $('endProfit').textContent = fmtMoney(endProfit);
+    $('ltvCac').textContent = ltvCac.toFixed(1) + 'x';
+    $('breakeven').textContent = isFinite(breakeven) ? fmtNum(breakeven) : 'N/A';
+    $('contribMargin').textContent = contribMarginPct.toFixed(1) + '%';
+
+    // Input labels
+    $('subsVal').textContent = fmtNum(+inputs.subs.value);
+    $('churnVal').textContent = (+inputs.churn.value).toFixed(1) + '%';
+    $('addsVal').textContent = fmtNum(+inputs.adds.value);
+    $('arpuVal').textContent = '$' + (+inputs.arpu.value);
+    $('vcVal').textContent = '$' + (+inputs.vc.value).toFixed(2);
+    $('fcVal').textContent = '$' + (+inputs.fc.value/1000).toFixed(2) + 'B';
+    $('cacVal').textContent = '$' + (+inputs.cac.value);
+
+    drawChart(r);
+  }
+
+  function drawChart(r) {
+    const canvas = $('chart');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 50, padR = 50, padT = 18, padB = 28;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // Subscribers in millions
+    const subsM = r.subsSeries.map(s => s / 1e6);
+    const subsMax = Math.max(...subsM, 0.1) * 1.1;
+    const subsMin = Math.min(...subsM, 0) * 0.9;
+
+    // Profit in millions
+    const profitM = r.profitSeries.map(p => p / 1e6);
+    const profitMax = Math.max(...profitM, 0, 100);
+    const profitMin = Math.min(...profitM, 0, -100);
+    const profitRange = profitMax - profitMin;
+    const profitMaxAdj = profitMax + profitRange * 0.1;
+    const profitMinAdj = profitMin - profitRange * 0.1;
+
+    // Gridlines
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH * i / 4);
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(W - padR, y);
+      ctx.stroke();
+    }
+
+    // X-axis labels (years)
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    for (let y = 0; y <= 5; y++) {
+      const x = padL + (plotW * y / 5);
+      ctx.fillText('Y' + y, x, H - 8);
+    }
+
+    // Y-axis labels left (subs)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#4B9CD3';
+    for (let i = 0; i <= 4; i++) {
+      const val = subsMax - (subsMax - subsMin) * (i / 4);
+      const y = padT + (plotH * i / 4);
+      ctx.fillText(val.toFixed(1) + 'M', padL - 6, y + 4);
+    }
+
+    // Y-axis labels right (profit)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#13294B';
+    for (let i = 0; i <= 4; i++) {
+      const val = profitMaxAdj - (profitMaxAdj - profitMinAdj) * (i / 4);
+      const y = padT + (plotH * i / 4);
+      ctx.fillText('$' + val.toFixed(0) + 'M', W - padR + 6, y + 4);
+    }
+
+    // Zero line for profit (if range crosses zero)
+    if (profitMinAdj < 0 && profitMaxAdj > 0) {
+      const zeroY = padT + plotH * (profitMaxAdj / (profitMaxAdj - profitMinAdj));
+      ctx.strokeStyle = '#E03C31';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(padL, zeroY);
+      ctx.lineTo(W - padR, zeroY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Subscribers line (Carolina blue)
+    ctx.strokeStyle = '#4B9CD3';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let m = 0; m <= 60; m++) {
+      const x = padL + plotW * (m / 60);
+      const v = subsM[m];
+      const y = padT + plotH * ((subsMax - v) / (subsMax - subsMin));
+      if (m === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Profit bars (Navy)
+    ctx.fillStyle = '#13294B';
+    const barW = plotW / 5 * 0.45;
+    for (let y = 0; y < 5; y++) {
+      const xCenter = padL + plotW * ((y + 0.5) / 5);
+      const v = profitM[y];
+      const zeroY = padT + plotH * (profitMaxAdj / (profitMaxAdj - profitMinAdj));
+      const barY = padT + plotH * ((profitMaxAdj - v) / (profitMaxAdj - profitMinAdj));
+      const top = Math.min(zeroY, barY);
+      const height = Math.abs(zeroY - barY);
+      ctx.fillStyle = v >= 0 ? '#13294B' : '#E03C31';
+      ctx.fillRect(xCenter - barW/2, top, barW, height);
+    }
+  }
+
+  Object.values(inputs).forEach(el => el.addEventListener('input', update));
+  $('resetBtn').addEventListener('click', () => {
+    Object.keys(defaults).forEach(k => inputs[k].value = defaults[k]);
+    update();
+  });
+
+  window.addEventListener('resize', update);
+  update();
+</script>
+</body>
+</html>
